@@ -1,0 +1,38 @@
+plugins {
+    id 'groovy'
+    id 'maven-publish'
+}
+
+version = '1.0.2'
+group = 'org.gradle.sample'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation 'org.codehaus.groovy:groovy-all:3.0.10'
+    implementation 'org.apache.logging.log4j:log4j-api:2.19.0'
+    implementation 'org.apache.logging.log4j:log4j-core:2.19.0'
+
+    // Strictly exact version of Maven dependency
+    implementation 'com.codevineyard:hello-world:1.0.1!!'
+
+}
+
+dependencyLocking {
+    lockAllConfigurations()
+}
+
+publishing {
+    publications {
+        library(MavenPublication) {
+            from components.java
+        }
+    }
+    repositories {
+        maven {
+            url = uri("${buildDir}/publishing-repository")
+        }
+    }
+}

@@ -1,0 +1,35 @@
+{
+ "graph_lock": {
+  "nodes": {
+   "0": {
+    "ref": "alembic/None",
+    "options": "fPIC=True\nshared=False\nwith_hdf5=False\nopenexr:fPIC=True\nopenexr:shared=False\nzlib:fPIC=True\nzlib:shared=False",
+    "requires": [
+     "1"
+    ],
+    "path": "conanfile.py",
+    "context": "host"
+   },
+   "1": {
+    "ref": "openexr/2.5.7",
+    "options": "fPIC=True\nshared=False\nzlib:fPIC=True\nzlib:shared=False",
+    "package_id": "62354f337a7e19ba43d02028e4df4c3103ffc018",
+    "prev": "0",
+    "requires": [
+     "2"
+    ],
+    "context": "host"
+   },
+   "2": {
+    "ref": "zlib/1.2.12",
+    "options": "fPIC=True\nshared=False",
+    "package_id": "dfbe50feef7f3c6223a476cd5aeadb687084a646",
+    "prev": "0",
+    "context": "host"
+   }
+  },
+  "revisions_enabled": false
+ },
+ "version": "0.4",
+ "profile_host": "[settings]\narch=x86_64\narch_build=x86_64\nbuild_type=Release\ncompiler=gcc\ncompiler.libcxx=libstdc++\ncompiler.version=11\nos=Linux\nos_build=Linux\n[options]\n[build_requires]\n[env]\n"
+}

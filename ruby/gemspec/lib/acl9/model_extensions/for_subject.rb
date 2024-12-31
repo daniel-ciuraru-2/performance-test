@@ -1,0 +1,232 @@
+require_relative "../prepositions"
+
+module Acl9
+  module ModelExtensions
+    module ForSubject
+      include Prepositions
+
+      DEFAULT = Class.new do
+        def default?
+          true
+        end
+      end.new.freeze
+
+      ##
+      # Role check.
+      #
+      # There is a global option, +Acl9.config[:protect_global_roles]+, which governs
+      # this method behavior.
+      #
+      # If protect_global_roles is +false+, an object role is automatically counted
+      # as global role. E.g.
+      #
+      #   Acl9.config[:protect_global_roles] = false
+      #   user.has_role!(:manager, @foo)
+      #   user.has_role?(:manager, @foo)  # => true
+      #   user.has_role?(:manager)        # => true
+      #
+      # In this case manager is anyone who "manages" at least one object.
+      #
+      # However, if protect_global_roles option set to +true+, you'll need to
+      # explicitly grant global role with same name.
+      #
+      #   Acl9.config[:protect_global_roles] = true
+      #   user.has_role!(:manager, @foo)
+      #   user.has_role?(:manager)        # => false
+      #   user.has_role!(:manager)
+      #   user.has_role?(:manager)        # => true
+      #
+      # protect_global_roles option is +false+ by default as for now, but this
+      # may change in future!
+      #
+      # @return [Boolean] Whether +self+ has a role +role_name+ on +object+.
+      # @param [Symbol,String] role_name Role name
+      # @param [Object] object Object to query a role on
+      #
+      # @see Acl9::ModelExtensions::Object#accepts_role?
+      def has_role?(role_name, object = default)
+        check! object
+        role_name = normalize role_name
+        object = _by_preposition object
+
+        !! if object == default && !::Acl9.config[:protect_global_roles]
+          _role_objects.find_by_name(role_name.to_s) ||
+          _role_objects.member?(get_role(role_name, object))
+        else
+          role = get_role(role_name, object)
+          role && _role_objects.exists?(role.id)
+        end
+      end
+
+      ##
+      # Add specified role on +object+ to +self+.
+      #
+      # @param [Symbol,String] role_name Role name
+      # @param [Object] object Object to add a role for
+      # @see Acl9::ModelExtensions::Object#accepts_role!
+      def has_role!(role_name, object = default)
+        check! object
+        role_name = normalize role_name
+        object = _by_preposition object
+
+        role = get_role(role_name, object)
+
+        if role.nil?
+          role_attrs = case object
+                       when Class   then { :authorizable_type => object.to_s }
+                       when default then {}
+                       else              { :authorizable => object }
+                       end.merge({ :name => role_name.to_s })
+
+          role = _auth_role_class.create(role_attrs)
+        end
+
+        _role_objects << role if role && !_role_objects.exists?(role.id)
+      end
+
+      ##
+      # Free +self+ from a specified role on +object+.
+      #
+      # @param [Symbol,String] role_name Role name
+      # @param [Object] object Object to remove a role on
+      # @see Acl9::ModelExtensions::Object#accepts_no_role!
+      def has_no_role!(role_name, object = default)
+        check! object
+        role_name = normalize role_name
+        object = _by_preposition object
+        delete_role(get_role(role_name, object))
+      end
+
+      ##
+      # Are there any roles for +self+ on +object+?
+      #
+      # @param [Object] object Object to query roles
+      # @return [Boolean] Returns true if +self+ has any roles on +object+.
+      # @see Acl9::ModelExtensions::Object#accepts_roles_by?
+      def has_roles_for?(object)
+        check! object
+        !!_role_objects.detect(&role_selecting_lambda(object))
+      end
+
+      alias :has_role_for? :has_roles_for?
+
+      ##
+      # Which roles does +self+ have on +object+?
+      #
+      # @return [Array<Role>] Role instances, associated both with +self+ and +object+
+      # @param [Object] object Object to query roles
+      # @see Acl9::ModelExtensions::Object#accepted_roles_by
+      # @example
+      #   user = User.find(...)
+      #   product = Product.find(...)
+      #
+      #   user.roles_for(product).map(&:name).sort  #=> role names in alphabetical order
+      def roles_for(object)
+        check! object
+        _role_objects.select(&role_selecting_lambda(object))
+      end
+
+      ##
+      # Unassign any roles on +object+ from +self+.
+      #
+      # @param [Object,default] object Object to unassign roles for. Empty args means unassign global roles.
+      def has_no_roles_for!(object = default)
+        check! object
+        roles_for(object).each { |role| delete_role(role) }
+      end
+
+      ##
+      # Unassign all roles from +self+.
+      def has_no_roles!
+        # for some reason simple
+        #
+        #   roles.each { |role| delete_role(role) }
+        #
+        # doesn't work. seems like a bug in ActiveRecord
+        _role_objects.map(&:id).each do |role_id|
+          delete_role _auth_role_class.find(role_id)
+        end
+      end
+
+      private
+
+      def role_selecting_lambda(object)
+        case object
+        when Class
+          lambda { |role| role.authorizable_type == object.to_s }
+        when default
+          lambda { |role| role.authorizable.nil? }
+        else
+          lambda do |role|
+            auth_id = role.authorizable_id.kind_of?(String) ? object.id.to_s : object.id
+            role.authorizable_type == object.class.base_class.to_s && role.authorizable_id == auth_id
+          end
+        end
+      end
+
+      def get_role(role_name, object = default)
+        check! object
+        role_name = normalize role_name
+
+        cond = case object
+               when Class
+                 [ 'name = ? and authorizable_type = ? and authorizable_id IS NULL', role_name, object.to_s ]
+               when default
+                 [ 'name = ? and authorizable_type IS NULL and authorizable_id IS NULL', role_name ]
+               else
+                 [
+                   'name = ? and authorizable_type = ? and authorizable_id = ?',
+                   role_name, object.class.base_class.to_s, object.id
+                 ]
+               end
+
+        if _auth_role_class.respond_to?(:where)
+          _auth_role_class.where(cond).first
+        else
+          _auth_role_class.find(:first, :conditions => cond)
+        end
+      end
+
+      def delete_role(role)
+        if role
+          if ret = _role_objects.delete(role)
+            if role.send(_auth_subject_class_name.demodulize.tableize).empty?
+              ret &&= role.destroy unless role.respond_to?(:system?) && role.system?
+            end
+          end
+          ret
+        end
+      end
+
+      def normalize role_name
+        Acl9.config[:normalize_role_names] ? role_name.to_s.underscore.singularize : role_name.to_s
+      end
+
+      private
+
+      def check! object
+        raise NilObjectError if object.nil?
+      end
+
+      def _by_preposition object
+        object.is_a?(Hash) ? super : object
+      end
+
+      def _auth_role_class
+        self.class._auth_role_class_name.constantize
+      end
+
+      def _auth_role_assoc
+        self.class._auth_role_assoc_name
+      end
+
+      def _role_objects
+        send(_auth_role_assoc)
+      end
+
+      def default
+        DEFAULT
+      end
+    end
+  end
+end
