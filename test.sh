@@ -5,8 +5,6 @@ echo $(date +%s)
 trivy clean --all
 # trivy server params to add: --use-trivy-server --trivy-server-url https://us-east-1.staging.edge.cloud.aquasec.com 
 CONTAINER_ID=$( \
-export AQUA_KEY=ZV0zqahzSr6QYw9DZBdp21
-export AQUA_SECRET=hTuPsIFZioQAuW5Jx7vdCOne2VzBVqxBMPt
 export TRIVY_RUN_AS_PLUGIN=aqua
 export CSPM_URL=https://stage.api.cloudsploit.com
 export AQUA_URL=https://api.dev.supply-chain.cloud.aquasec.com
@@ -23,12 +21,12 @@ docker run -d -p 8082:80 -v /Users/danielciuraru/Library/Caches/trivy:/tmp/.cach
 aquasec/aqua-scanner:latest \
 trivy fs --scanners vuln,misconfig,secret --sast --output res.json --format json .)
 
-# Monitor the container's network I/O every 1 second while it's running
+# Monitor the container's network I/O every 0.5 second while it's running
 while [ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER_ID")" == "true" ]; do
     # Extract only the Network I/O information and print it
     NETWORK_IO=$(docker stats "$CONTAINER_ID" --no-stream --format "{{.NetIO}}")
     echo "Network I/O: $NETWORK_IO"
-    sleep 1
+    sleep 0.5
 done
 
 # Wait for the container to exit completely
