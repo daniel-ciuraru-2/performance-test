@@ -3,7 +3,7 @@ echo $(date +%s)
 
 # disable for run with cache
 trivy clean --all
-
+# trivy server params to add: --use-trivy-server --trivy-server-url https://us-east-1.staging.edge.cloud.aquasec.com 
 CONTAINER_ID=$( \
 export AQUA_KEY=ZV0zqahzSr6QYw9DZBdp21
 export AQUA_SECRET=hTuPsIFZioQAuW5Jx7vdCOne2VzBVqxBMPt
