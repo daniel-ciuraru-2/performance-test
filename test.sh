@@ -1,6 +1,9 @@
 echo "Start test"
 echo $(date +%s)
 
+# disable for run with cache
+trivy clean --all
+
 CONTAINER_ID=$( \
 export AQUA_KEY=ZV0zqahzSr6QYw9DZBdp21
 export AQUA_SECRET=hTuPsIFZioQAuW5Jx7vdCOne2VzBVqxBMPt
@@ -18,14 +21,14 @@ docker run -d -p 8082:80 -v /Users/danielciuraru/Library/Caches/trivy:/tmp/.cach
 -e INPUT_WORKING_DIRECTORY=/scanning \
 -v "$WORKSPACE":"/scanning" \
 aquasec/aqua-scanner:latest \
-trivy fs --scanners vuln,misconfig,secret --sast --output res.json --format json --use-trivy-server --trivy-server-url https://us-east-1.staging.edge.cloud.aquasec.com  .)
+trivy fs --scanners vuln,misconfig,secret --sast --output res.json --format json .)
 
-# Monitor the container's network I/O every 0.5 second while it's running
+# Monitor the container's network I/O every 1 second while it's running
 while [ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER_ID")" == "true" ]; do
     # Extract only the Network I/O information and print it
     NETWORK_IO=$(docker stats "$CONTAINER_ID" --no-stream --format "{{.NetIO}}")
     echo "Network I/O: $NETWORK_IO"
-    sleep 0.5
+    sleep 1
 done
 
 # Wait for the container to exit completely
